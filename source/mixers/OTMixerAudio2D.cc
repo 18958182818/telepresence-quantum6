@@ -72,7 +72,7 @@ OTObjectWrapper<OTFrameAudio *> OTMixerAudio2D::mix(std::map<uint64_t, OTObjectW
 		{
 			OT_DEBUG_ERROR("Failed to alloc buffer with size = %u", nTempBufferSize);
 			m_nTempBufferSize = 0;
-			return false;
+			return NULL;
 		}
 		m_nTempBufferSize = nTempBufferSize;
 		if(!(m_oFrame = OTFrameAudio::New(true, NULL, m_nTempBufferSize)))

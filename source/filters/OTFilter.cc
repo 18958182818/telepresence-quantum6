@@ -10,8 +10,7 @@ extern "C"
 {
 #include <libswscale/swscale.h>
 #include <libavfilter/avfilter.h>
-#include <libavfilter/avfiltergraph.h>
-#include <libavfilter/avcodec.h>
+#include <libavcodec/avcodec.h>
 #include <libavfilter/buffersink.h>
 #include <libavfilter/buffersrc.h>
 }
@@ -133,7 +132,7 @@ bool OTFilterVideoFFmeg::filterFrame(
 			void* pOutFrame
 		)
 {
-	AVFilterBufferRef *pPicref = NULL;
+	AVFrame* pFrameIn = NULL;
 	int ret;
 
 	// check that all parameters are valid (buffer must contain YUV420 image)
@@ -162,13 +161,13 @@ bool OTFilterVideoFFmeg::filterFrame(
 	}
 
 	/* wrap buffers */
-	avpicture_fill((AVPicture *)m_pFrameIn, (const uint8_t*)pcInBufferPtr, PIX_FMT_YUV420P, nInWidth, nInHeight);
+	avpicture_fill((AVPicture *)m_pFrameIn, (const uint8_t*)pcInBufferPtr, AV_PIX_FMT_YUV420P, nInWidth, nInHeight);
 	// because of scaling filter(optional), we've to restore the size
 	m_pFrameIn->width = nInWidth;
 	m_pFrameIn->height = nInHeight;
 
 	/* push the decoded frame into the filtergraph */
-    if((ret = av_buffersrc_add_frame(m_pBufferSrcCtx, m_pFrameIn, 0)) < 0) 
+    if((ret = av_buffersrc_add_frame(m_pBufferSrcCtx, m_pFrameIn)) < 0) 
 	{
 		OT_DEBUG_ERROR_EX(kOTMobuleNameFFmpegFilter, "Error while feeding the filtergraph: %s", ot_av_err2str(ret));
         goto end;
@@ -177,7 +176,7 @@ bool OTFilterVideoFFmeg::filterFrame(
     /* pull filtered pictures from the filtergraph */
     while(1)
 	{
-        ret = av_buffersink_get_buffer_ref(m_pBufferSinkCtx, &pPicref, 0);
+        ret = av_buffersink_get_frame(m_pBufferSinkCtx, m_pFrameIn);
         if(ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
 		{
 			ret = 0;
@@ -189,23 +188,18 @@ bool OTFilterVideoFFmeg::filterFrame(
             goto end;
 		}
 
-        if(pPicref)
-		{
-			/* apply filter */
-			ret = avfilter_copy_buf_props(m_pFrameIn, pPicref); // FIXME: use out here? instead of layouting?
-			avfilter_unref_bufferp(&pPicref);	
-			av_picture_copy((AVPicture*)pOutFrame, (const AVPicture*)m_pFrameIn, (enum AVPixelFormat)m_pFrameIn->format, m_pFrameIn->width, m_pFrameIn->height);
-        }
+		/* apply filter */
+		ret = av_frame_copy_props((AVFrame*)pOutFrame, m_pFrameIn); // FIXME: use out here? instead of layouting?
+		av_picture_copy((AVPicture*)pOutFrame, (const AVPicture*)m_pFrameIn, (enum AVPixelFormat)m_pFrameIn->format, m_pFrameIn->width, m_pFrameIn->height);
     }
 
 end:
-	avfilter_unref_bufferp(&pPicref);
 	return (ret == 0);
 }
 
 bool OTFilterVideoFFmeg::_init(std::string strDescription, size_t nInWidth, size_t nInHeight, size_t nOutWidth, size_t nOutHeight, size_t nFps)
 {
-	static enum AVPixelFormat __pix_fmts[] = { PIX_FMT_YUV420P, AV_PIX_FMT_NONE };
+	static enum AVPixelFormat __pix_fmts[] = { AV_PIX_FMT_YUV420P, AV_PIX_FMT_NONE };
 	AVBufferSinkParams *pBufferSinkParams;
 
 	_deInit();
@@ -273,7 +267,7 @@ bool OTFilterVideoFFmeg::_init(std::string strDescription, size_t nInWidth, size
 	m_pInputs->pad_idx    = 0;
 	m_pInputs->next       = NULL;
 
-	if((ret = avfilter_graph_parse(m_pFilterGraph, strDescription.c_str(), &m_pInputs, &m_pOutputs, NULL)) < 0)
+	if((ret = avfilter_graph_parse(m_pFilterGraph, strDescription.c_str(), m_pInputs, m_pOutputs, NULL)) < 0)
 	{
 		OT_DEBUG_ERROR_EX(kOTMobuleNameFFmpegFilter, "Failed to parse graph[%s]: %s", strDescription.c_str(), ot_av_err2str(ret));
 		goto end;
@@ -285,7 +279,7 @@ bool OTFilterVideoFFmeg::_init(std::string strDescription, size_t nInWidth, size
 		goto end;
 	}
 
-	m_pFrameIn = avcodec_alloc_frame();
+	m_pFrameIn = av_frame_alloc();
 	if(!m_pFrameIn)
 	{
 		OT_DEBUG_ERROR_EX(kOTMobuleNameFFmpegFilter, "Failed to allocate video frame");
@@ -295,7 +289,7 @@ bool OTFilterVideoFFmeg::_init(std::string strDescription, size_t nInWidth, size
 	m_pFrameIn->pts = 0;
 	m_pFrameIn->width = nInWidth;
 	m_pFrameIn->height = nInHeight;
-	m_pFrameIn->format = PIX_FMT_YUV420P;
+	m_pFrameIn->format = AV_PIX_FMT_YUV420P;
 
 	m_nInWidth = nInWidth;
 	m_nInHeight = nInHeight;

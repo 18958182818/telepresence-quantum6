@@ -369,7 +369,7 @@ OTObjectWrapper<OTFrameVideo *> OTPatternVideoHangout::mix(std::map<uint64_t, OT
 	// adjust the buffer
 	if(*pDstBufferSize < nMaxBufferSize)
 	{
-		if(!(*ppDstBuffer = tsk_realloc(*ppDstBuffer, (nMaxBufferSize + FF_INPUT_BUFFER_PADDING_SIZE))))
+		if(!(*ppDstBuffer = tsk_realloc(*ppDstBuffer, (nMaxBufferSize + AV_INPUT_BUFFER_PADDING_SIZE))))
 		{
 			OT_DEBUG_ERROR("Failed to alloc buffer with size = %u", nMaxBufferSize);
 			*pDstBufferSize = 0;
@@ -418,13 +418,13 @@ OTObjectWrapper<OTFrameVideo *> OTPatternVideoHangout::mix(std::map<uint64_t, OT
 		{
 			if(!m_pFrameMix)
 			{
-				OT_ASSERT(m_pFrameMix = avcodec_alloc_frame());
+				OT_ASSERT(m_pFrameMix = av_frame_alloc());
 			}
 			
-			avpicture_fill((AVPicture*)m_pFrameMix, (uint8_t*)*ppDstBuffer, PIX_FMT_YUV420P, nWidth, nHeight);
+			avpicture_fill((AVPicture*)m_pFrameMix, (uint8_t*)*ppDstBuffer, AV_PIX_FMT_YUV420P, nWidth, nHeight);
 			m_pFrameMix->width = nWidth;
 			m_pFrameMix->height = nHeight;
-			m_pFrameMix->format = PIX_FMT_YUV420P;
+			m_pFrameMix->format = AV_PIX_FMT_YUV420P;
 
 			// fill with white
 			memset(m_pFrameMix->data[0], Y_WHITE, (m_pFrameMix->linesize[0] * nHeight));

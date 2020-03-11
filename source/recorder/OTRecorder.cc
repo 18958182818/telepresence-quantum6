@@ -458,7 +458,7 @@ bool OTRecorderFFmpeg::writeRawVideoPayload(const void* yuv420PayPtr, size_t yuv
 	AVPacket pkt = {0};
 
 	// wrap() the data
-	/*size_t size =*/ avpicture_fill((AVPicture *)m_pVideoFrame, (const uint8_t*)yuv420PayPtr, PIX_FMT_YUV420P, m_pVideoStream->codec->width, m_pVideoStream->codec->height);
+	/*size_t size =*/ avpicture_fill((AVPicture *)m_pVideoFrame, (const uint8_t*)yuv420PayPtr, AV_PIX_FMT_YUV420P, m_pVideoStream->codec->width, m_pVideoStream->codec->height);
 	
 	 av_init_packet(&pkt);
 
@@ -470,7 +470,7 @@ bool OTRecorderFFmpeg::writeRawVideoPayload(const void* yuv420PayPtr, size_t yuv
 	m_pVideoFrame->pts += av_rescale_q(1, m_pVideoStream->codec->time_base, m_pVideoStream->time_base);
 #endif
 
-    if (m_pFormatCtx->oformat->flags & AVFMT_RAWPICTURE)
+    if (m_pFormatCtx->oformat->flags & AVFMT_NOFILE)
 	{
         /* Raw video case - directly store the picture in the packet */
         pkt.flags        |= AV_PKT_FLAG_KEY;
@@ -691,14 +691,14 @@ AVStream* OTRecorderFFmpeg::_addStream(AVCodec **ppCodec, enum AVCodecID eCodecI
     if(!(*ppCodec))
 	{
         OT_DEBUG_ERROR_EX(kOTMobuleNameFFmpegRecorder, "Could not find encoder for '%s'", avcodec_get_name(eCodecId));
-        return false;
+        return NULL;
     }
 
     pStream = avformat_new_stream(m_pFormatCtx, *ppCodec);
     if(!pStream) 
 	{
         OT_DEBUG_ERROR_EX(kOTMobuleNameFFmpegRecorder, "Could not allocate stream");
-        return false;
+        return NULL;
     }
     pStream->id = m_pFormatCtx->nb_streams - 1;
 	pStream->codec->codec_id = eCodecId;
@@ -746,7 +746,7 @@ AVStream* OTRecorderFFmpeg::_addStream(AVCodec **ppCodec, enum AVCodecID eCodecI
 	/* Some formats want stream headers to be separate. */
     if (m_pFormatCtx->oformat->flags & AVFMT_GLOBALHEADER)
 	{
-		pStream->codec->flags |= CODEC_FLAG_GLOBAL_HEADER;
+		pStream->codec->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
 	}
 
 	return pStream;
@@ -769,7 +769,7 @@ bool OTRecorderFFmpeg::_openAudio()
     int ret;
 
 	/* allocate and init a re-usable frame */
-    m_pAudioFrame = avcodec_alloc_frame();
+    m_pAudioFrame = av_frame_alloc();
     if(!m_pAudioFrame)
 	{
         OT_DEBUG_ERROR_EX(kOTMobuleNameFFmpegRecorder, "Could not allocate audio frame");
@@ -792,7 +792,7 @@ bool OTRecorderFFmpeg::_openAudio()
 	av_dict_free(&opts);
 
 	/* guess required frame size */
-	if(m_pAudioStream->codec->codec->capabilities & CODEC_CAP_VARIABLE_FRAME_SIZE)
+	if(m_pAudioStream->codec->codec->capabilities & AV_CODEC_CAP_VARIABLE_FRAME_SIZE)
 	{
         m_nAVAudioBufferSizeInSamples = 1024;
 	}
@@ -879,7 +879,7 @@ bool OTRecorderFFmpeg::_openVideo()
     }
 
     /* allocate and init a re-usable frame */
-    m_pVideoFrame = avcodec_alloc_frame();
+    m_pVideoFrame = av_frame_alloc();
     if(!m_pVideoFrame)
 	{
         OT_DEBUG_ERROR_EX(kOTMobuleNameFFmpegRecorder, "Could not allocate video frame");
